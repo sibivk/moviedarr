@@ -467,11 +467,22 @@ def process_completed_files():
             logger.info('Already at destination, skipping: %s', dest)
             continue
 
+        # Determine source folder BEFORE the move (path is gone after)
+        src_folder = src.parent if src.is_file() else src
+
         try:
             shutil.move(str(src), str(dest))
             logger.info('Moved: %s → %s', src.name, dest)
             _record_moved(key, movie_title, str(dest))
             moved_count += 1
+
+            # Clean up source folder in STORAGE_PATH (NZBGet download folder)
+            if src_folder != STORAGE_MOUNT and src_folder.name.lower() not in PROTECTED_DIRS:
+                try:
+                    shutil.rmtree(str(src_folder))
+                    logger.info('Cleaned up source folder: %s', src_folder.name)
+                except Exception as rm_err:
+                    logger.warning('Could not remove source folder %s: %s', src_folder, rm_err)
         except Exception as e:
             logger.error('Move failed %s → %s: %s', src, dest, e)
 

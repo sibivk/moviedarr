@@ -64,16 +64,11 @@ header {
   margin-bottom: 10px;
 }
 
-.logo-icon {
-  width: 52px;
+.logo-img {
   height: 52px;
-  background: linear-gradient(135deg, var(--primary), var(--purple));
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  box-shadow: 0 0 40px rgba(0,212,255,0.3);
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(0,212,255,0.4));
 }
 
 .logo-text {
@@ -385,6 +380,7 @@ header {
 .badge-avc    { background: rgba(100,116,139,0.15); color: #94a3b8; border-color: rgba(100,116,139,0.25); }
 .badge-remux  { background: rgba(139,92,246,0.15); color: #c4b5fd; border-color: rgba(139,92,246,0.3); }
 .badge-atmos  { background: rgba(245,158,11,0.1);  color: #fcd34d; border-color: rgba(245,158,11,0.2); }
+.badge-recommended { background: rgba(16,185,129,0.18); color: #10b981; border-color: rgba(16,185,129,0.5); font-size: 0.72rem; letter-spacing: 0.5px; }
 
 /* ─── Stat chips (size + DL) ─── */
 .stats-row {
@@ -492,6 +488,28 @@ header {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Shake ─── */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+.shake { animation: shake 0.4s ease; }
+
+.lang-warning {
+  display: none;
+  color: var(--error);
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px;
+}
 
 /* ─── Toast ─── */
 #toasts {
@@ -663,7 +681,7 @@ footer {
 <div class="app">
   <header>
     <div class="logo">
-      <div class="logo-icon">🎬</div>
+      <img src="/static/Logo_White.png" alt="Moviedarr" class="logo-img">
       <span class="logo-text">Moviedarr</span>
     </div>
     <p class="tagline">Search · Grab · Watch — powered by nzbs.in &amp; NZBGet</p>
@@ -695,6 +713,9 @@ footer {
         <input type="radio" name="lang" value="tamil">
         <span>🌺 Tamil</span>
       </label>
+      <div id="langWarning" class="lang-warning">
+        ⚠ You must select Malayalam, Hindi or Tamil before queuing.
+      </div>
     </div>
   </div>
 
@@ -854,12 +875,19 @@ function renderResults(items) {
     return;
   }
 
+  const MIN_RECOMMENDED = 1 * 1073741824;  // 1 GB
+  const MAX_RECOMMENDED = 10 * 1073741824; // 10 GB
+
   r.innerHTML = items.map((item, i) => {
     const badges  = parseBadges(item.title);
     const display = cleanTitle(item.title);
     const pct  = sizePct(item.size_bytes);
     const sc   = sizeClass(item.size_bytes);
     const rank = `<div class="rank-num">#${i + 1}</div>`;
+
+    const is1080p = /\b1080[PI]?\b/i.test(item.title);
+    const inRange = item.size_bytes >= MIN_RECOMMENDED && item.size_bytes <= MAX_RECOMMENDED;
+    const recommended = is1080p && inRange;
 
     const badgeHTML = badges.map(b =>
       `<span class="badge ${b.cls}">${b.text}</span>`
@@ -880,7 +908,10 @@ function renderResults(items) {
     <div class="card">
       <div class="card-rank">${rank}</div>
       <div class="card-body">
-        <div class="clean-title">${esc(display)}</div>
+        <div class="clean-title">
+          ${esc(display)}
+          ${recommended ? '<span class="badge badge-recommended" style="margin-left:8px;vertical-align:middle">✦ Recommended</span>' : ''}
+        </div>
         <div class="raw-title">${esc(item.title)}</div>
         ${badgeHTML ? `<div class="badges">${badgeHTML}</div>` : ''}
         <div class="stats-row">
@@ -949,12 +980,17 @@ async function doSearch() {
 async function queueItem(urlEnc, titleEnc, btn) {
   const langEl = document.querySelector('input[name="lang"]:checked');
   if (!langEl) {
-    toast('Select a library first — Malayalam, Hindi or Tamil', 'error');
-    // Briefly highlight the language selector
-    const sel = document.querySelector('.lang-selector');
-    sel.style.outline = '1.5px solid var(--error)';
-    sel.style.borderRadius = '8px';
-    setTimeout(() => { sel.style.outline = ''; }, 2000);
+    const sel  = document.querySelector('.lang-selector');
+    const warn = document.getElementById('langWarning');
+    warn.style.display = 'block';
+    sel.classList.remove('shake');
+    void sel.offsetWidth; // reflow to restart animation
+    sel.classList.add('shake');
+    sel.addEventListener('animationend', () => sel.classList.remove('shake'), { once: true });
+    // Auto-hide warning once a language is picked
+    document.querySelectorAll('input[name="lang"]').forEach(r =>
+      r.addEventListener('change', () => { warn.style.display = 'none'; }, { once: true })
+    );
     return;
   }
   const language = langEl.value;
