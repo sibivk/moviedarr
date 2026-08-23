@@ -1,0 +1,155 @@
+import os
+import re
+import logging
+import xml.etree.ElementTree as ET
+from flask import Flask, request, jsonify, render_template
+from urllib.parse import urljoin
+import requests
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler("logs/app.log"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+NZBS_API_KEY = os.getenv("NZBS_API_KEY", "")
+NZBS_BASE_URL = "https://nzbs.in/api"
+NZBGET_URL = os.getenv("NZBGET_URL", "http://localhost:6789")
+NZBGET_USER = os.getenv("NZBGET_USERNAME", "nzbget")
+NZBGET_PASS = os.getenv("NZBGET_PASSWORD", "")
+NZB_CATEGORY = os.getenv("NZB_CATEGORY", "Evaluate")
+MAX_SIZE_BYTES = int(os.getenv("MAX_SIZE_GB", "10")) * 1024 ** 3
+
+NEWZNAB_NS = "{http://www.newznab.com/DTD/2010/feeds/attributes/}"
+
+_SAFE_TITLE_RE = re.compile(r"[^\w\s\-\(\)\.]")
+_YEAR_RE = re.compile(r"^(.*?)[. _]\(?(\d{4})\)?")
+
+
+@app.after_request
+def security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+@app.route("/api/search", methods=["GET"])
+def search_nzb():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+    if len(query) > 200:
+        return jsonify({"error": "Query too long"}), 400
+    if not NZBS_API_KEY or NZBS_API_KEY == "your_nzbs_in_api_key_here":
+        return jsonify({"error": "NZBS_API_KEY is not configured in .env"}), 500
+
+    params = {"t": "movie", "apikey": NZBS_API_KEY, "q": query, "extended": 1}
+
+    try:
+        resp = requests.get(NZBS_BASE_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        root = ET.fromstring(resp.text)
+        results = []
+
+        for item in root.findall(".//item"):
+            title = item.findtext("title") or ""
+            link = item.findtext("link") or ""
+            size = int(item.findtext("size") or 0)
+
+            if size > MAX_SIZE_BYTES:
+                continue
+
+            grabs = 0
+            for attr in item.findall(f"{NEWZNAB_NS}attr"):
+                if attr.attrib.get("name") == "grabs":
+                    grabs = int(attr.attrib.get("value", 0))
+
+            results.append(
+                {"title": title, "download_url": link, "size_bytes": size, "grabs": grabs}
+            )
+
+        results.sort(key=lambda x: x["grabs"], reverse=True)
+        logger.info("Search '%s' → %d results (after %dGB filter)", query, len(results), MAX_SIZE_BYTES // 1024 ** 3)
+        return jsonify({"results": results})
+
+    except requests.Timeout:
+        logger.error("Timeout searching nzbs.in for '%s'", query)
+        return jsonify({"error": "Search timed out — try again"}), 504
+    except ET.ParseError as e:
+        logger.error("XML parse error: %s", e)
+        return jsonify({"error": "Unexpected response from nzbs.in"}), 502
+    except Exception as e:
+        logger.error("Search error: %s", e)
+        return jsonify({"error": f"Search failed: {str(e)}"}), 500
+
+
+@app.route("/api/queue", methods=["POST"])
+def queue_nzb():
+    data = request.get_json(silent=True) or {}
+    nzb_url = data.get("url", "").strip()
+    title = data.get("title", "Movie Download").strip()
+    category = data.get("category", NZB_CATEGORY).strip()
+
+    if not nzb_url:
+        return jsonify({"error": "Missing 'url' parameter"}), 400
+    if not nzb_url.startswith(("http://", "https://")):
+        return jsonify({"error": "Invalid URL"}), 400
+
+    safe_title = _SAFE_TITLE_RE.sub("", title)[:200].strip()
+    clean_name = clean_movie_title(safe_title)
+
+    payload = {
+        "method": "append",
+        "params": [f"{clean_name}.nzb", nzb_url, category, 0, False, False, "", 0, "FORCE"],
+    }
+
+    rpc_endpoint = urljoin(NZBGET_URL, "/jsonrpc")
+    try:
+        auth = (NZBGET_USER, NZBGET_PASS) if NZBGET_USER else None
+        rpc_resp = requests.post(rpc_endpoint, json=payload, auth=auth, timeout=10)
+        rpc_resp.raise_for_status()
+        result = rpc_resp.json()
+
+        if result.get("result", 0) > 0:
+            logger.info("Queued '%s' → NZBGet id=%s category=%s", clean_name, result["result"], category)
+            return jsonify({"status": "success", "nzbget_id": result["result"], "name": clean_name})
+        else:
+            return jsonify({"error": "NZBGet rejected the request", "details": result}), 500
+
+    except requests.Timeout:
+        return jsonify({"error": "NZBGet connection timed out"}), 504
+    except Exception as e:
+        logger.error("Queue error: %s", e)
+        return jsonify({"error": f"Failed to connect to NZBGet: {str(e)}"}), 500
+
+
+@app.route("/api/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "category": NZB_CATEGORY, "max_size_gb": MAX_SIZE_BYTES // 1024 ** 3})
+
+
+def clean_movie_title(folder_name):
+    match = _YEAR_RE.search(folder_name)
+    if match:
+        raw_title, year = match.groups()
+        clean = raw_title.replace(".", " ").strip()
+        return f"{clean} ({year})"
+    return folder_name
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

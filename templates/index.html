@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moviedarr</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #06090f;
+  --surface:   rgba(255,255,255,0.04);
+  --surface-h: rgba(255,255,255,0.07);
+  --border:    rgba(255,255,255,0.08);
+  --border-h:  rgba(0,212,255,0.35);
+  --primary:   #00d4ff;
+  --primary-d: #0099bb;
+  --purple:    #8b5cf6;
+  --success:   #10b981;
+  --error:     #ef4444;
+  --warn:      #f59e0b;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --dim:       #334155;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Star canvas ─── */
+#stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ─── Layout ─── */
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+/* ─── Header ─── */
+header {
+  text-align: center;
+  padding: 60px 0 48px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.logo-icon {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, var(--primary), var(--purple));
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  box-shadow: 0 0 40px rgba(0,212,255,0.3);
+}
+
+.logo-text {
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #fff 30%, var(--primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Search ─── */
+.search-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+}
+
+#query {
+  flex: 1;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+#query:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.12), 0 0 30px rgba(0,212,255,0.08);
+  background: rgba(255,255,255,0.06);
+}
+
+#query::placeholder { color: var(--dim); }
+
+#searchBtn {
+  padding: 16px 28px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-d));
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+  box-shadow: 0 0 20px rgba(0,212,255,0.25);
+}
+
+#searchBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 30px rgba(0,212,255,0.4);
+}
+
+#searchBtn:active:not(:disabled) { transform: translateY(0); }
+#searchBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ─── Status bar ─── */
+#status {
+  min-height: 24px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#status.error   { color: var(--error); }
+#status.success { color: var(--primary); }
+
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ─── Skeleton loading ─── */
+.skeleton-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.skeleton-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.skeleton-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.sk-line {
+  background: var(--dim);
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+/* ─── Results grid ─── */
+#results { display: grid; gap: 12px; }
+
+/* ─── Result card ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  animation: fadeUp 0.3s ease both;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.card:hover {
+  border-color: var(--border-h);
+  background: var(--surface-h);
+  transform: translateY(-1px);
+}
+
+.card:hover::before { opacity: 1; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* stagger */
+.card:nth-child(1)  { animation-delay: 0.00s; }
+.card:nth-child(2)  { animation-delay: 0.04s; }
+.card:nth-child(3)  { animation-delay: 0.08s; }
+.card:nth-child(4)  { animation-delay: 0.12s; }
+.card:nth-child(5)  { animation-delay: 0.16s; }
+.card:nth-child(6)  { animation-delay: 0.20s; }
+.card:nth-child(7)  { animation-delay: 0.24s; }
+.card:nth-child(8)  { animation-delay: 0.28s; }
+.card:nth-child(9)  { animation-delay: 0.32s; }
+.card:nth-child(10) { animation-delay: 0.36s; }
+
+.card-rank {
+  width: 32px;
+  flex-shrink: 0;
+  text-align: center;
+  padding-top: 2px;
+}
+
+.rank-num {
+  font-size: 0.75rem;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.rank-hot {
+  font-size: 1.2rem;
+}
+
+.card-body { flex: 1; min-width: 0; }
+
+.card-title {
+  font-size: 0.975rem;
+  font-weight: 600;
+  color: #f0f4f8;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.clean-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.raw-title {
+  font-size: 0.76rem;
+  color: var(--dim);
+  margin-bottom: 8px;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+/* ─── Badges ─── */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+.badge-4k     { background: rgba(139,92,246,0.2); color: #a78bfa; border-color: rgba(139,92,246,0.4); }
+.badge-1080p  { background: rgba(0,212,255,0.12); color: var(--primary); border-color: rgba(0,212,255,0.3); }
+.badge-720p   { background: rgba(100,116,139,0.2); color: #94a3b8; border-color: rgba(100,116,139,0.3); }
+.badge-bluray { background: rgba(59,130,246,0.15); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+.badge-webdl  { background: rgba(16,185,129,0.12); color: #34d399; border-color: rgba(16,185,129,0.25); }
+.badge-webrip { background: rgba(16,185,129,0.08); color: #6ee7b7; border-color: rgba(16,185,129,0.2); }
+.badge-hdr    { background: rgba(245,158,11,0.15); color: #fbbf24; border-color: rgba(245,158,11,0.3); }
+.badge-hevc   { background: rgba(239,68,68,0.12);  color: #f87171; border-color: rgba(239,68,68,0.25); }
+.badge-avc    { background: rgba(100,116,139,0.15); color: #94a3b8; border-color: rgba(100,116,139,0.25); }
+.badge-remux  { background: rgba(139,92,246,0.15); color: #c4b5fd; border-color: rgba(139,92,246,0.3); }
+.badge-atmos  { background: rgba(245,158,11,0.1);  color: #fcd34d; border-color: rgba(245,158,11,0.2); }
+
+/* ─── Size bar ─── */
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.size-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--dim);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.size-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.size-bar.green  { background: linear-gradient(90deg, var(--success), #34d399); }
+.size-bar.yellow { background: linear-gradient(90deg, #d97706, var(--warn)); }
+.size-bar.orange { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+.size-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 52px;
+  text-align: right;
+}
+
+.grabs-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.grabs-hot { color: var(--warn); }
+
+/* ─── Queue button ─── */
+.card-action { flex-shrink: 0; padding-top: 2px; }
+
+.btn-queue {
+  padding: 10px 18px;
+  background: transparent;
+  border: 1.5px solid var(--border-h);
+  border-radius: 10px;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+
+.btn-queue:hover:not(:disabled) {
+  background: rgba(0,212,255,0.1);
+  box-shadow: 0 0 16px rgba(0,212,255,0.2);
+  transform: translateY(-1px);
+}
+
+.btn-queue:active:not(:disabled) { transform: translateY(0); }
+.btn-queue:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-queue.queued {
+  background: rgba(16,185,129,0.15);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.btn-queue.failed {
+  background: rgba(239,68,68,0.12);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+/* ─── Spinner ─── */
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(0,212,255,0.3);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Toast ─── */
+#toasts {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: #1e293b;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: slideIn 0.25s ease;
+  pointer-events: all;
+  position: relative;
+  overflow: hidden;
+}
+
+.toast.toast-success { border-color: rgba(16,185,129,0.4); }
+.toast.toast-error   { border-color: rgba(239,68,68,0.4); }
+
+.toast-bar {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 2px;
+  border-radius: 0 0 10px 10px;
+  animation: shrink 3.5s linear forwards;
+}
+
+.toast-success .toast-bar { background: var(--success); }
+.toast-error   .toast-bar { background: var(--error); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shrink {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+.toast-out { animation: slideOut 0.2s ease forwards; }
+@keyframes slideOut {
+  to { opacity: 0; transform: translateX(24px); }
+}
+
+/* ─── Empty / no results ─── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-title { font-size: 1.1rem; font-weight: 600; color: var(--dim); margin-bottom: 6px; }
+.empty-sub   { font-size: 0.875rem; }
+
+/* ─── Footer ─── */
+footer {
+  text-align: center;
+  padding: 40px 0 0;
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .logo-text { font-size: 2rem; }
+  header { padding: 40px 0 32px; }
+  .card { flex-direction: column; }
+  .card-action { width: 100%; }
+  .btn-queue { width: 100%; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🎬</div>
+      <span class="logo-text">Moviedarr</span>
+    </div>
+    <p class="tagline">Search · Grab · Watch — powered by nzbs.in &amp; NZBGet</p>
+  </header>
+
+  <div class="search-wrap">
+    <div class="search-row">
+      <input
+        type="text"
+        id="query"
+        placeholder="Search for a movie…"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="200"
+      >
+      <button id="searchBtn" onclick="doSearch()">Search</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <div id="results"></div>
+</div>
+
+<div id="toasts"></div>
+
+<footer>Moviedarr · Results capped at 10 GB · Category: <span id="footerCat">Evaluate</span></footer>
+
+<script>
+/* ─── Star field ─── */
+(function () {
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  const COUNT = 180;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    init();
+  }
+
+  function init() {
+    stars = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.2 + 0.2,
+      alpha: Math.random() * 0.6 + 0.1,
+      speed: Math.random() * 0.003 + 0.001,
+      phase: Math.random() * Math.PI * 2,
+    }));
+  }
+
+  function draw(t) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      const a = s.alpha * (0.6 + 0.4 * Math.sin(t * s.speed + s.phase));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,220,255,${a})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+/* ─── Fetch health to get category ─── */
+fetch('/api/health').then(r => r.json()).then(d => {
+  const el = document.getElementById('footerCat');
+  if (el && d.category) el.textContent = d.category;
+}).catch(() => {});
+
+/* ─── Quality badge parsing ─── */
+function parseBadges(title) {
+  const u = title.toUpperCase();
+  const badges = [];
+
+  if (/\b(2160|4K|UHD)\b/.test(u))       badges.push({ text: '4K UHD', cls: 'badge-4k' });
+  else if (/\b1080[PI]?\b/.test(u))       badges.push({ text: '1080p', cls: 'badge-1080p' });
+  else if (/\b720[PI]?\b/.test(u))        badges.push({ text: '720p', cls: 'badge-720p' });
+
+  if (/REMUX/.test(u))                    badges.push({ text: 'REMUX', cls: 'badge-remux' });
+  else if (/BLU[\-. ]?RAY|BDRIP/.test(u)) badges.push({ text: 'BluRay', cls: 'badge-bluray' });
+  else if (/WEB[\-. ]?DL/.test(u))        badges.push({ text: 'WEB-DL', cls: 'badge-webdl' });
+  else if (/WEBRIP/.test(u))              badges.push({ text: 'WEBRip', cls: 'badge-webrip' });
+
+  if (/DOLBY.VISION|DV\b/.test(u))        badges.push({ text: 'Dolby Vision', cls: 'badge-hdr' });
+  else if (/HDR10\+/.test(u))             badges.push({ text: 'HDR10+', cls: 'badge-hdr' });
+  else if (/\bHDR\b/.test(u))             badges.push({ text: 'HDR', cls: 'badge-hdr' });
+
+  if (/X265|H\.?265|HEVC/.test(u))        badges.push({ text: 'HEVC', cls: 'badge-hevc' });
+  else if (/X264|H\.?264|AVC/.test(u))   badges.push({ text: 'H.264', cls: 'badge-avc' });
+
+  if (/ATMOS/.test(u))                    badges.push({ text: 'Atmos', cls: 'badge-atmos' });
+
+  return badges;
+}
+
+/* ─── Clean display title ─── */
+function cleanTitle(raw) {
+  const m = raw.match(/^(.*?)[\.\s_\-]\(?((?:19|20)\d{2})\)?/);
+  if (m) {
+    const name = m[1].replace(/[.\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    return `${name} (${m[2]})`;
+  }
+  return raw.split(/[\.\-_]/)[0].trim() || raw;
+}
+
+/* ─── Size helpers ─── */
+function fmtSize(bytes) {
+  const gb = bytes / 1073741824;
+  return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(bytes / 1048576).toFixed(0)} MB`;
+}
+
+function sizeClass(bytes) {
+  const gb = bytes / 1073741824;
+  if (gb < 3)  return 'green';
+  if (gb < 7)  return 'yellow';
+  return 'orange';
+}
+
+function sizePct(bytes, maxGB = 10) {
+  return Math.min(100, (bytes / (maxGB * 1073741824)) * 100).toFixed(1);
+}
+
+/* ─── Skeleton ─── */
+function showSkeleton() {
+  const r = document.getElementById('results');
+  const html = Array.from({ length: 4 }, () => `
+    <div class="skeleton-card">
+      <div class="sk-line" style="width:65%;height:14px"></div>
+      <div class="sk-line" style="width:40%;height:10px"></div>
+      <div class="sk-line" style="width:80%;height:8px;margin-top:14px"></div>
+    </div>`).join('');
+  r.innerHTML = `<div class="skeleton-grid">${html}</div>`;
+}
+
+/* ─── Render results ─── */
+function renderResults(items) {
+  const r = document.getElementById('results');
+  if (!items.length) {
+    r.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔭</div>
+        <div class="empty-title">No releases found</div>
+        <div class="empty-sub">Try a different title or check your API key</div>
+      </div>`;
+    return;
+  }
+
+  r.innerHTML = items.map((item, i) => {
+    const badges  = parseBadges(item.title);
+    const display = cleanTitle(item.title);
+    const pct     = sizePct(item.size_bytes);
+    const sc      = sizeClass(item.size_bytes);
+    const hot     = item.grabs >= 100;
+    const rank    = hot
+      ? `<div class="rank-hot">🔥</div>`
+      : `<div class="rank-num">#${i + 1}</div>`;
+
+    const badgeHTML = badges.map(b =>
+      `<span class="badge ${b.cls}">${b.text}</span>`
+    ).join('');
+
+    const urlEnc   = encodeURIComponent(item.download_url);
+    const titleEnc = encodeURIComponent(item.title);
+
+    return `
+    <div class="card">
+      <div class="card-rank">${rank}</div>
+      <div class="card-body">
+        <div class="clean-title">${esc(display)}</div>
+        <div class="raw-title">${esc(item.title)}</div>
+        ${badgeHTML ? `<div class="badges">${badgeHTML}</div>` : ''}
+        <div class="size-row">
+          <div class="size-bar-wrap">
+            <div class="size-bar ${sc}" style="width:${pct}%"></div>
+          </div>
+          <span class="size-label">${fmtSize(item.size_bytes)}</span>
+          <span class="grabs-label ${hot ? 'grabs-hot' : ''}">
+            ${hot ? '🔥' : '↓'} ${item.grabs.toLocaleString()}
+          </span>
+        </div>
+      </div>
+      <div class="card-action">
+        <button
+          class="btn-queue"
+          onclick="queueItem('${urlEnc}', '${titleEnc}', this)"
+        >Queue</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function esc(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─── Search ─── */
+async function doSearch() {
+  const input   = document.getElementById('query');
+  const btn     = document.getElementById('searchBtn');
+  const status  = document.getElementById('status');
+  const query   = input.value.trim();
+  if (!query) { input.focus(); return; }
+
+  btn.disabled = true;
+  status.className = '';
+  status.innerHTML = '<div class="dot"></div> Searching nzbs.in…';
+  showSkeleton();
+
+  try {
+    const res  = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+
+    if (data.error) {
+      status.className = 'error';
+      status.innerHTML = `<div class="dot"></div> ${esc(data.error)}`;
+      document.getElementById('results').innerHTML = '';
+      return;
+    }
+
+    const n = data.results.length;
+    status.className = 'success';
+    status.innerHTML = `<div class="dot"></div> ${n} result${n !== 1 ? 's' : ''} — sorted by popularity`;
+    renderResults(data.results);
+  } catch (e) {
+    status.className = 'error';
+    status.innerHTML = '<div class="dot"></div> Could not reach the backend service';
+    document.getElementById('results').innerHTML = '';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ─── Queue ─── */
+async function queueItem(urlEnc, titleEnc, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Queuing…';
+
+  try {
+    const res  = await fetch('/api/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url:   decodeURIComponent(urlEnc),
+        title: decodeURIComponent(titleEnc),
+      }),
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      btn.textContent = '✓ Queued';
+      btn.classList.add('queued');
+      toast(`Queued: ${data.name || 'Download added'}`, 'success');
+    } else {
+      throw new Error(data.error || 'Unknown error');
+    }
+  } catch (e) {
+    btn.textContent = '✗ Failed';
+    btn.classList.add('failed');
+    toast(`Error: ${e.message}`, 'error');
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = 'Queue';
+      btn.classList.remove('failed');
+    }, 3000);
+  }
+}
+
+/* ─── Toast ─── */
+function toast(msg, type = 'success') {
+  const wrap = document.getElementById('toasts');
+  const el   = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `${esc(msg)}<div class="toast-bar"></div>`;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-out');
+    el.addEventListener('animationend', () => el.remove());
+  }, 3500);
+}
+
+/* ─── Enter key ─── */
+document.getElementById('query').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+</script>
+</body>
+</html>
