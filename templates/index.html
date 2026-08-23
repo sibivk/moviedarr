@@ -688,13 +688,79 @@ footer {
   font-size: 0.8rem;
 }
 
-/* ─── Responsive ─── */
-@media (max-width: 600px) {
-  .logo-text { font-size: 2rem; }
-  header { padding: 40px 0 32px; }
-  .card { flex-direction: column; }
+/* ─── Responsive — tablet ─── */
+@media (max-width: 640px) {
+  .app { padding: 0 14px 48px; }
+
+  header { padding: 44px 0 28px; }
+  .logo { gap: 10px; margin-bottom: 6px; }
+  .logo-img { height: 42px; }
+  .logo-text { font-size: 2.1rem; }
+  .tagline { font-size: 0.85rem; }
+
+  /* OTT – tuck it tighter on small screens */
+  .ott-link { top: 12px; right: 12px; padding: 5px 10px; font-size: 0.72rem; }
+
+  /* Search row – keep side by side but tighter */
+  #query { padding: 13px 14px; }
+  #searchBtn { padding: 13px 18px; font-size: 0.88rem; }
+
+  /* Language pills – slightly smaller */
+  .lang-selector { gap: 6px; margin-top: 10px; }
+  .lang-pill span { padding: 6px 12px; font-size: 0.8rem; }
+
+  /* Cards */
+  .card { flex-direction: column; padding: 14px 14px; gap: 10px; }
+  .card-rank { display: none; }
   .card-action { width: 100%; }
-  .btn-queue { width: 100%; text-align: center; }
+  .btn-queue { width: 100%; text-align: center; padding: 12px; }
+
+  /* Stat chips */
+  .stat-chip { padding: 3px 8px; font-size: 0.76rem; }
+  .size-bar-wrap { display: none; }
+
+  /* Badges */
+  .badge { font-size: 0.65rem; padding: 2px 6px; }
+
+  /* Toast – stretch across bottom */
+  #toasts { right: 10px; left: 10px; bottom: 16px; }
+  .toast { max-width: 100%; }
+
+  /* Activity */
+  .activity-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .activity-content { padding: 12px; }
+}
+
+/* ─── Responsive — phone ─── */
+@media (max-width: 400px) {
+  .app { padding: 0 10px 40px; }
+
+  header { padding: 48px 0 22px; }
+  .logo { gap: 8px; }
+  .logo-img { height: 34px; }
+  .logo-text { font-size: 1.7rem; letter-spacing: -0.5px; }
+  .tagline { font-size: 0.78rem; }
+
+  .ott-link { padding: 4px 9px; font-size: 0.68rem; }
+
+  /* Search – stack vertically on very small screens */
+  .search-row { flex-direction: column; }
+  #searchBtn { width: 100%; padding: 13px; }
+
+  /* Language pills – 3 across full width */
+  .lang-selector { justify-content: stretch; }
+  .lang-pill { flex: 1; text-align: center; }
+  .lang-pill span { width: 100%; display: block; text-align: center; padding: 7px 6px; font-size: 0.76rem; }
+
+  /* Status */
+  #status { font-size: 0.8rem; margin-bottom: 20px; }
+
+  /* Titles */
+  .clean-title { font-size: 0.92rem; }
+  .raw-title { font-size: 0.68rem; }
+
+  /* Card */
+  .card { padding: 12px 12px; }
 }
 </style>
 </head>
@@ -747,12 +813,9 @@ footer {
 
   <div id="status"></div>
   <div id="results"></div>
-</div>
 
-<div id="toasts"></div>
-
-<!-- ── Activity Panel ── -->
-<div class="activity-bar">
+  <!-- ── Activity Panel ── -->
+  <div class="activity-bar">
   <button class="activity-toggle" onclick="toggleActivity(this)">
     📋 Auto-Download Activity
   </button>
@@ -768,6 +831,10 @@ footer {
 </div>
 
 <footer>Moviedarr · Results capped at 10 GB · Category: <span id="footerCat">Evaluate</span></footer>
+
+</div><!-- /.app -->
+
+<div id="toasts"></div>
 
 <script>
 /* ─── Star field ─── */
