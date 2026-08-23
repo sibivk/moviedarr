@@ -327,20 +327,49 @@ header {
 .badge-remux  { background: rgba(139,92,246,0.15); color: #c4b5fd; border-color: rgba(139,92,246,0.3); }
 .badge-atmos  { background: rgba(245,158,11,0.1);  color: #fcd34d; border-color: rgba(245,158,11,0.2); }
 
-/* ─── Size bar ─── */
-.size-row {
+/* ─── Stat chips (size + DL) ─── */
+.stats-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.stat-chip .chip-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.stat-chip.size-green  { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); color: #34d399; }
+.stat-chip.size-yellow { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); color: #fbbf24; }
+.stat-chip.size-orange { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.3);  color: #f87171; }
+
+.stat-chip.dl-chip     { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
+.stat-chip.dl-hot      { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.35); color: #fbbf24; }
+
+/* ─── Size bar ─── */
 .size-bar-wrap {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: var(--dim);
   border-radius: 2px;
   overflow: hidden;
+  min-width: 60px;
 }
 
 .size-bar {
@@ -352,22 +381,6 @@ header {
 .size-bar.green  { background: linear-gradient(90deg, var(--success), #34d399); }
 .size-bar.yellow { background: linear-gradient(90deg, #d97706, var(--warn)); }
 .size-bar.orange { background: linear-gradient(90deg, #dc2626, #f87171); }
-
-.size-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  white-space: nowrap;
-  min-width: 52px;
-  text-align: right;
-}
-
-.grabs-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.grabs-hot { color: var(--warn); }
 
 /* ─── Queue button ─── */
 .card-action { flex-shrink: 0; padding-top: 2px; }
@@ -679,6 +692,9 @@ function renderResults(items) {
       `<span class="badge ${b.cls}">${b.text}</span>`
     ).join('');
 
+    const dlClass = hot ? 'dl-hot' : 'dl-chip';
+    const dlIcon  = hot ? '🔥' : '↓';
+
     const urlEnc   = encodeURIComponent(item.download_url);
     const titleEnc = encodeURIComponent(item.title);
 
@@ -689,14 +705,18 @@ function renderResults(items) {
         <div class="clean-title">${esc(display)}</div>
         <div class="raw-title">${esc(item.title)}</div>
         ${badgeHTML ? `<div class="badges">${badgeHTML}</div>` : ''}
-        <div class="size-row">
+        <div class="stats-row">
+          <span class="stat-chip size-${sc}">
+            <span class="chip-label">Size</span>
+            ${fmtSize(item.size_bytes)}
+          </span>
+          <span class="stat-chip ${dlClass}">
+            <span class="chip-label">DL</span>
+            ${dlIcon} ${item.grabs.toLocaleString()}
+          </span>
           <div class="size-bar-wrap">
             <div class="size-bar ${sc}" style="width:${pct}%"></div>
           </div>
-          <span class="size-label">${fmtSize(item.size_bytes)}</span>
-          <span class="grabs-label ${hot ? 'grabs-hot' : ''}">
-            ${hot ? '🔥' : '↓'} ${item.grabs.toLocaleString()}
-          </span>
         </div>
       </div>
       <div class="card-action">
