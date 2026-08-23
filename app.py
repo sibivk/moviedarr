@@ -68,21 +68,50 @@ def search_nzb():
         for item in root.findall(".//item"):
             title = item.findtext("title") or ""
             link = item.findtext("link") or ""
-            size = int(item.findtext("size") or 0)
+
+            size = 0
+            grabs = 0
+            imdb_rating = None
+            imdb_votes = 0
+
+            for attr in item.findall(f"{NEWZNAB_NS}attr"):
+                name = attr.attrib.get("name", "")
+                value = attr.attrib.get("value", "")
+                if name == "size":
+                    size = int(value) if value.isdigit() else 0
+                elif name == "grabs":
+                    grabs = int(value) if value.isdigit() else 0
+                elif name == "imdb_rating":
+                    try:
+                        imdb_rating = float(value)
+                    except ValueError:
+                        pass
+                elif name == "imdb_votes":
+                    try:
+                        imdb_votes = int(value)
+                    except ValueError:
+                        pass
+
+            # Fall back to enclosure length if newznab:attr size is missing
+            if size == 0:
+                enc = item.find("enclosure")
+                if enc is not None:
+                    length = enc.attrib.get("length", "0")
+                    size = int(length) if length.isdigit() else 0
 
             if size > MAX_SIZE_BYTES:
                 continue
 
-            grabs = 0
-            for attr in item.findall(f"{NEWZNAB_NS}attr"):
-                if attr.attrib.get("name") == "grabs":
-                    grabs = int(attr.attrib.get("value", 0))
+            results.append({
+                "title": title,
+                "download_url": link,
+                "size_bytes": size,
+                "grabs": grabs,
+                "imdb_rating": imdb_rating,
+                "imdb_votes": imdb_votes,
+            })
 
-            results.append(
-                {"title": title, "download_url": link, "size_bytes": size, "grabs": grabs}
-            )
-
-        results.sort(key=lambda x: x["grabs"], reverse=True)
+        results.sort(key=lambda x: (x["imdb_rating"] or 0, x["imdb_votes"]), reverse=True)
         logger.info("Search '%s' → %d results (after %dGB filter)", query, len(results), MAX_SIZE_BYTES // 1024 ** 3)
         return jsonify({"results": results})
 

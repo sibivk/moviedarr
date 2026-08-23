@@ -361,6 +361,7 @@ header {
 
 .stat-chip.dl-chip     { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
 .stat-chip.dl-hot      { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.35); color: #fbbf24; }
+.stat-chip.imdb-chip   { background: rgba(245,197,24,0.12); border-color: rgba(245,197,24,0.3);  color: #fde68a; }
 
 /* ─── Size bar ─── */
 .size-bar-wrap {
@@ -653,6 +654,12 @@ function sizePct(bytes, maxGB = 10) {
   return Math.min(100, (bytes / (maxGB * 1073741824)) * 100).toFixed(1);
 }
 
+function fmtVotes(n) {
+  if (n >= 1000000) return `${(n/1000000).toFixed(1)}M`;
+  if (n >= 1000)    return `${(n/1000).toFixed(1)}k`;
+  return n.toString();
+}
+
 /* ─── Skeleton ─── */
 function showSkeleton() {
   const r = document.getElementById('results');
@@ -681,22 +688,24 @@ function renderResults(items) {
   r.innerHTML = items.map((item, i) => {
     const badges  = parseBadges(item.title);
     const display = cleanTitle(item.title);
-    const pct     = sizePct(item.size_bytes);
-    const sc      = sizeClass(item.size_bytes);
-    const hot     = item.grabs >= 100;
-    const rank    = hot
-      ? `<div class="rank-hot">🔥</div>`
-      : `<div class="rank-num">#${i + 1}</div>`;
+    const pct  = sizePct(item.size_bytes);
+    const sc   = sizeClass(item.size_bytes);
+    const rank = `<div class="rank-num">#${i + 1}</div>`;
 
     const badgeHTML = badges.map(b =>
       `<span class="badge ${b.cls}">${b.text}</span>`
     ).join('');
 
-    const dlClass = hot ? 'dl-hot' : 'dl-chip';
-    const dlIcon  = hot ? '🔥' : '↓';
-
     const urlEnc   = encodeURIComponent(item.download_url);
     const titleEnc = encodeURIComponent(item.title);
+
+    const imdbChip = item.imdb_rating != null
+      ? `<span class="stat-chip imdb-chip">
+           <span class="chip-label">IMDb</span>
+           ⭐ ${item.imdb_rating.toFixed(1)}
+           <span style="opacity:0.55;font-size:0.7rem">(${fmtVotes(item.imdb_votes)})</span>
+         </span>`
+      : '';
 
     return `
     <div class="card">
@@ -710,10 +719,7 @@ function renderResults(items) {
             <span class="chip-label">Size</span>
             ${fmtSize(item.size_bytes)}
           </span>
-          <span class="stat-chip ${dlClass}">
-            <span class="chip-label">DL</span>
-            ${dlIcon} ${item.grabs.toLocaleString()}
-          </span>
+          ${imdbChip}
           <div class="size-bar-wrap">
             <div class="size-bar ${sc}" style="width:${pct}%"></div>
           </div>
