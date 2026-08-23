@@ -50,6 +50,15 @@ TARGET_LANGS   = {'malayalam', 'hindi', 'tamil'}
 PROTECTED_DIRS = {'preroll', 'temp'}   # compared case-insensitively
 OTT_URL        = 'https://www.ottmovierelease.com'
 
+# Plex
+PLEX_URL      = os.getenv('PLEX_URL', '')
+PLEX_TOKEN    = os.getenv('PLEX_TOKEN', '')
+PLEX_SECTIONS = {
+    'malayalam': os.getenv('PLEX_SECTION_MALAYALAM', ''),
+    'hindi':     os.getenv('PLEX_SECTION_HINDI', ''),
+    'tamil':     os.getenv('PLEX_SECTION_TAMIL', ''),
+}
+
 _db_lock = Lock()
 _scheduler = None
 
@@ -72,6 +81,25 @@ def _fuzzy_match(title: str, candidate: str) -> bool:
     bare = re.sub(r'((?:19|20)\d{2}.*)', '', candidate)
     norm_cand = _norm(bare) or _norm(candidate)
     return norm_title in norm_cand or norm_cand in norm_title
+
+
+def _plex_scan(language: str):
+    """Trigger a Plex library scan for the given language section."""
+    if not PLEX_URL or not PLEX_TOKEN:
+        return
+    section_id = PLEX_SECTIONS.get(language, '')
+    if not section_id:
+        logger.warning('No Plex section ID configured for language: %s', language)
+        return
+    url = f'{PLEX_URL}/library/sections/{section_id}/refresh'
+    try:
+        r = requests.get(url, params={'X-Plex-Token': PLEX_TOKEN}, timeout=10)
+        if r.status_code == 200:
+            logger.info('Plex scan triggered for %s (section %s)', language, section_id)
+        else:
+            logger.warning('Plex scan returned %d for section %s', r.status_code, section_id)
+    except Exception as e:
+        logger.error('Plex scan failed for %s: %s', language, e)
 
 
 def _extract_name_year(raw: str) -> tuple:
@@ -483,6 +511,9 @@ def process_completed_files():
                     logger.info('Cleaned up source folder: %s', src_folder.name)
                 except Exception as rm_err:
                     logger.warning('Could not remove source folder %s: %s', src_folder, rm_err)
+
+            # Trigger Plex library scan for the destination language
+            _plex_scan(lang)
         except Exception as e:
             logger.error('Move failed %s → %s: %s', src, dest, e)
 

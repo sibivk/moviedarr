@@ -656,6 +656,30 @@ header {
 
 .activity-note { font-size: 0.76rem; color: var(--muted); }
 
+/* ─── OTT button ─── */
+.ott-link {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 100;
+  padding: 7px 14px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.ott-link:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 14px rgba(0,212,255,0.2);
+}
+
 /* ─── Footer ─── */
 footer {
   text-align: center;
@@ -677,6 +701,8 @@ footer {
 <body>
 
 <canvas id="stars"></canvas>
+
+<a class="ott-link" href="https://www.ottmovierelease.com" target="_blank" rel="noopener">🎬 OTT</a>
 
 <div class="app">
   <header>
