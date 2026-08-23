@@ -509,3 +509,8 @@ def trigger_process_files():
     t = threading.Thread(target=process_completed_files, daemon=True)
     t.start()
     return 'File mover triggered'
+
+
+def record_queued_manual(title: str, year, language: str, nzb_title: str, nzbget_id: int):
+    """Record a manually queued movie (via the UI Queue button) into the tracking DB."""
+    _record_queued(title, year, language, nzb_title, nzbget_id)

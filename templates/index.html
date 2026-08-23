@@ -147,6 +147,65 @@ header {
 #searchBtn:active:not(:disabled) { transform: translateY(0); }
 #searchBtn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+/* ─── Language selector ─── */
+.lang-selector {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.lang-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+
+.lang-pill input[type="radio"] { display: none; }
+
+.lang-pill span {
+  display: inline-block;
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+  background: var(--surface);
+  user-select: none;
+  backdrop-filter: blur(6px);
+}
+
+.lang-pill:hover span { border-color: var(--primary); color: var(--text); }
+
+.lang-pill.ml input:checked + span {
+  border-color: #34d399;
+  background: rgba(52,211,153,0.12);
+  color: #34d399;
+  box-shadow: 0 0 14px rgba(52,211,153,0.18);
+}
+
+.lang-pill.hi input:checked + span {
+  border-color: #f59e0b;
+  background: rgba(245,158,11,0.12);
+  color: #f59e0b;
+  box-shadow: 0 0 14px rgba(245,158,11,0.18);
+}
+
+.lang-pill.ta input:checked + span {
+  border-color: #f87171;
+  background: rgba(248,113,113,0.12);
+  color: #f87171;
+  box-shadow: 0 0 14px rgba(248,113,113,0.18);
+}
+
 /* ─── Status bar ─── */
 #status {
   min-height: 24px;
@@ -622,6 +681,21 @@ footer {
       >
       <button id="searchBtn" onclick="doSearch()">Search</button>
     </div>
+    <div class="lang-selector">
+      <span class="lang-label">Library:</span>
+      <label class="lang-pill ml">
+        <input type="radio" name="lang" value="malayalam">
+        <span>🌿 Malayalam</span>
+      </label>
+      <label class="lang-pill hi">
+        <input type="radio" name="lang" value="hindi">
+        <span>🏵 Hindi</span>
+      </label>
+      <label class="lang-pill ta">
+        <input type="radio" name="lang" value="tamil">
+        <span>🌺 Tamil</span>
+      </label>
+    </div>
   </div>
 
   <div id="status"></div>
@@ -873,6 +947,18 @@ async function doSearch() {
 
 /* ─── Queue ─── */
 async function queueItem(urlEnc, titleEnc, btn) {
+  const langEl = document.querySelector('input[name="lang"]:checked');
+  if (!langEl) {
+    toast('Select a library first — Malayalam, Hindi or Tamil', 'error');
+    // Briefly highlight the language selector
+    const sel = document.querySelector('.lang-selector');
+    sel.style.outline = '1.5px solid var(--error)';
+    sel.style.borderRadius = '8px';
+    setTimeout(() => { sel.style.outline = ''; }, 2000);
+    return;
+  }
+  const language = langEl.value;
+
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Queuing…';
 
@@ -881,8 +967,9 @@ async function queueItem(urlEnc, titleEnc, btn) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url:   decodeURIComponent(urlEnc),
-        title: decodeURIComponent(titleEnc),
+        url:      decodeURIComponent(urlEnc),
+        title:    decodeURIComponent(titleEnc),
+        language: language,
       }),
     });
     const data = await res.json();
@@ -890,7 +977,8 @@ async function queueItem(urlEnc, titleEnc, btn) {
     if (data.status === 'success') {
       btn.textContent = '✓ Queued';
       btn.classList.add('queued');
-      toast(`Queued: ${data.name || 'Download added'}`, 'success');
+      const langLabel = { malayalam: '🌿 Malayalam', hindi: '🏵 Hindi', tamil: '🌺 Tamil' }[language] || language;
+      toast(`Queued → ${langLabel} library: ${data.name || 'Download added'}`, 'success');
     } else {
       throw new Error(data.error || 'Unknown error');
     }

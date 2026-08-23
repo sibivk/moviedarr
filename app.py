@@ -133,17 +133,22 @@ def search_nzb():
         return jsonify({"error": f"Search failed: {str(e)}"}), 500
 
 
+VALID_LANGUAGES = {"malayalam", "hindi", "tamil"}
+
 @app.route("/api/queue", methods=["POST"])
 def queue_nzb():
     data = request.get_json(silent=True) or {}
     nzb_url = data.get("url", "").strip()
     title = data.get("title", "Movie Download").strip()
     category = data.get("category", NZB_CATEGORY).strip()
+    language = data.get("language", "").strip().lower()
 
     if not nzb_url:
         return jsonify({"error": "Missing 'url' parameter"}), 400
     if not nzb_url.startswith(("http://", "https://")):
         return jsonify({"error": "Invalid URL"}), 400
+    if language and language not in VALID_LANGUAGES:
+        return jsonify({"error": f"Invalid language '{language}' — must be malayalam, hindi or tamil"}), 400
 
     safe_title = _SAFE_TITLE_RE.sub("", title)[:200].strip()
     clean_name = clean_movie_title(safe_title)
@@ -160,9 +165,20 @@ def queue_nzb():
         rpc_resp.raise_for_status()
         result = rpc_resp.json()
 
-        if result.get("result", 0) > 0:
-            logger.info("Queued '%s' → NZBGet id=%s category=%s", clean_name, result["result"], category)
-            return jsonify({"status": "success", "nzbget_id": result["result"], "name": clean_name})
+        nzbget_id = result.get("result", 0)
+        if nzbget_id > 0:
+            logger.info("Queued '%s' [%s] → NZBGet id=%s category=%s", clean_name, language or "unknown", nzbget_id, category)
+            # Record in tracking DB so file mover knows which library to use
+            if language:
+                try:
+                    from scheduler import record_queued_manual
+                    m = _YEAR_RE.search(clean_name)
+                    movie_title = m.group(1).replace(".", " ").strip() if m else clean_name
+                    movie_year  = m.group(2) if m else None
+                    record_queued_manual(movie_title, movie_year, language, title, nzbget_id)
+                except Exception as rec_err:
+                    logger.warning("Could not record queue entry: %s", rec_err)
+            return jsonify({"status": "success", "nzbget_id": nzbget_id, "name": clean_name})
         else:
             return jsonify({"error": "NZBGet rejected the request", "details": result}), 500
 
