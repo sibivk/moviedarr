@@ -61,6 +61,19 @@ def _norm(text: str) -> str:
     return re.sub(r'[^\w]', '', text.lower())
 
 
+def _fuzzy_match(title: str, candidate: str) -> bool:
+    """
+    Bidirectional fuzzy match: strip year/ext from candidate, then check
+    if either string contains the other. Catches 'Chand Mera Dil' vs
+    'Chand.Mera.Dil.2026.1080p.mkv' and near-duplicate titles.
+    """
+    norm_title = _norm(title)
+    # Strip trailing year and quality tokens from candidate before comparing
+    bare = re.sub(r'((?:19|20)\d{2}.*)', '', candidate)
+    norm_cand = _norm(bare) or _norm(candidate)
+    return norm_title in norm_cand or norm_cand in norm_title
+
+
 def _extract_name_year(raw: str) -> tuple:
     """
     Extract (clean_title, year) from an NZB title or folder name.
@@ -150,23 +163,21 @@ def get_stats() -> dict:
 
 def _in_library(title: str) -> bool:
     """Return True if a movie matching title already exists in any library."""
-    norm = _norm(title)
-
-    # STORAGE_PATH — skip PREROLL and TEMP (case-insensitive)
+    # STORAGE_PATH (Evaluate) — skip protected dirs and hidden files
     if STORAGE_MOUNT.exists():
         for item in STORAGE_MOUNT.iterdir():
             if item.name.lower() in PROTECTED_DIRS:
                 continue
             if item.name.startswith('.'):
                 continue
-            if norm in _norm(item.name):
+            if _fuzzy_match(title, item.name):
                 return True
 
     # Language libraries
     for lp in LIBRARY_PATHS.values():
         if lp.exists():
             for item in lp.iterdir():
-                if norm in _norm(item.name):
+                if _fuzzy_match(title, item.name):
                     return True
 
     return False
