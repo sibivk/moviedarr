@@ -20,8 +20,23 @@ fi
 # ── Parse key env vars from .env ─────────────────────────
 _get_env() { grep -m1 "^${1}=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs; }
 
-PORT=$(_get_env PORT);         PORT="${PORT:-5000}"
+PORT=$(_get_env PORT);             PORT="${PORT:-5000}"
 STORAGE_PATH=$(_get_env STORAGE_PATH); STORAGE_PATH="${STORAGE_PATH:-/tmp}"
+NZBGET_URL=$(_get_env NZBGET_URL); NZBGET_URL="${NZBGET_URL:-}"
+
+# ── Resolve NZBGet hostname for hairpin-NAT fix ───────────
+# If NZBGET_URL resolves to this host's own IP, override DNS inside
+# the container so it routes via host.containers.internal instead.
+EXTRA_HOSTS=""
+if [ -n "$NZBGET_URL" ]; then
+  NZBGET_HOST=$(echo "$NZBGET_URL" | sed -E 's|https?://([^/:]+).*|\1|')
+  HOST_IP=$(hostname -I | awk '{print $1}')
+  RESOLVED=$(python3 -c "import socket; print(socket.gethostbyname('$NZBGET_HOST'))" 2>/dev/null || echo "")
+  if [ "$RESOLVED" = "$HOST_IP" ]; then
+    echo "Note: $NZBGET_HOST resolves to this host — overriding DNS in container via host.containers.internal"
+    EXTRA_HOSTS="--add-host=${NZBGET_HOST}:169.254.1.2"
+  fi
+fi
 
 # ── Build image ───────────────────────────────────────────
 echo "Building ${IMAGE_NAME}..."
@@ -55,6 +70,7 @@ podman run -d \
   -p "${PORT}:5000" \
   -v "$(pwd)/logs:/app/logs:Z" \
   -v "${STORAGE_PATH}:/media:Z" \
+  $EXTRA_HOSTS \
   "$IMAGE_NAME"
 
 echo ""
