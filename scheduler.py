@@ -47,7 +47,7 @@ MIN_SIZE_BYTES = 1 * 1024 ** 3   # 1 GB minimum
 MAX_SIZE_BYTES = 10 * 1024 ** 3  # 10 GB cap
 NEWZNAB_NS     = '{http://www.newznab.com/DTD/2010/feeds/attributes/}'
 TARGET_LANGS   = {'malayalam', 'hindi', 'tamil'}
-PROTECTED_DIRS = {'PREROLL', 'TEMP'}
+PROTECTED_DIRS = {'preroll', 'temp'}   # compared case-insensitively
 OTT_URL        = 'https://www.ottmovierelease.com'
 
 _db_lock = Lock()
@@ -152,10 +152,10 @@ def _in_library(title: str) -> bool:
     """Return True if a movie matching title already exists in any library."""
     norm = _norm(title)
 
-    # STORAGE_PATH — skip PREROLL and TEMP
+    # STORAGE_PATH — skip PREROLL and TEMP (case-insensitive)
     if STORAGE_MOUNT.exists():
         for item in STORAGE_MOUNT.iterdir():
-            if item.name in PROTECTED_DIRS:
+            if item.name.lower() in PROTECTED_DIRS:
                 continue
             if item.name.startswith('.'):
                 continue
@@ -404,8 +404,8 @@ def process_completed_files():
         # Resolve path inside the container
         src = STORAGE_MOUNT / rel_path
 
-        # Safety: never touch PREROLL or TEMP
-        if any(p in PROTECTED_DIRS for p in src.parts):
+        # Safety: never touch PREROLL or TEMP (case-insensitive)
+        if any(p.lower() in PROTECTED_DIRS for p in src.parts):
             logger.warning('Skipping protected path: %s', src)
             continue
 
@@ -490,3 +490,11 @@ def trigger_now():
     t = threading.Thread(target=auto_download_job, daemon=True)
     t.start()
     return 'Auto-download job triggered'
+
+
+def trigger_process_files():
+    """Manually trigger the file mover (for testing)."""
+    import threading
+    t = threading.Thread(target=process_completed_files, daemon=True)
+    t.start()
+    return 'File mover triggered'

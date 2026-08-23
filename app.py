@@ -198,6 +198,17 @@ def scheduler_trigger():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/scheduler/process-files", methods=["POST"])
+def scheduler_process_files():
+    try:
+        from scheduler import trigger_process_files
+        msg = trigger_process_files()
+        logger.info("Manual file-mover trigger by user")
+        return jsonify({"status": "ok", "message": msg})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def clean_movie_title(folder_name):
     match = _YEAR_RE.search(folder_name)
     if match:
