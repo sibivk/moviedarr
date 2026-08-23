@@ -7,11 +7,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY app.py scheduler.py ./
 COPY templates/ templates/
 
-RUN mkdir -p logs
+RUN mkdir -p logs data /libraries/malayalam /libraries/hindi /libraries/tamil
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60", "app:app"]
+# Single worker — prevents duplicate scheduler jobs across workers
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "60", "app:app"]

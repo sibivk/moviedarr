@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Start background scheduler (daily auto-download + file mover)
+try:
+    from scheduler import start_scheduler
+    start_scheduler()
+except Exception as _sched_err:
+    logger.error("Scheduler failed to start: %s", _sched_err)
+
 NZBS_API_KEY = os.getenv("NZBS_API_KEY", "")
 NZBS_BASE_URL = "https://nzbs.in/api"
 NZBGET_URL = os.getenv("NZBGET_URL", "http://localhost:6789")
@@ -169,6 +176,26 @@ def queue_nzb():
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "category": NZB_CATEGORY, "max_size_gb": MAX_SIZE_BYTES // 1024 ** 3})
+
+
+@app.route("/api/activity", methods=["GET"])
+def activity():
+    try:
+        from scheduler import get_activity, get_stats
+        return jsonify({"activity": get_activity(50), "stats": get_stats()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/scheduler/trigger", methods=["POST"])
+def scheduler_trigger():
+    try:
+        from scheduler import trigger_now
+        msg = trigger_now()
+        logger.info("Manual scheduler trigger by user")
+        return jsonify({"status": "ok", "message": msg})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 def clean_movie_title(folder_name):

@@ -20,9 +20,12 @@ fi
 # ── Parse key env vars from .env ─────────────────────────
 _get_env() { grep -m1 "^${1}=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs; }
 
-PORT=$(_get_env PORT);             PORT="${PORT:-5000}"
-STORAGE_PATH=$(_get_env STORAGE_PATH); STORAGE_PATH="${STORAGE_PATH:-/tmp}"
-NZBGET_URL=$(_get_env NZBGET_URL); NZBGET_URL="${NZBGET_URL:-}"
+PORT=$(_get_env PORT);                     PORT="${PORT:-5000}"
+STORAGE_PATH=$(_get_env STORAGE_PATH);     STORAGE_PATH="${STORAGE_PATH:-/tmp}"
+NZBGET_URL=$(_get_env NZBGET_URL);         NZBGET_URL="${NZBGET_URL:-}"
+SEARCH_MALAYALAM=$(_get_env SEARCH_MALAYALAM)
+SEARCH_HINDI=$(_get_env SEARCH_HINDI)
+SEARCH_TAMIL=$(_get_env SEARCH_TAMIL)
 
 # ── Resolve NZBGet hostname for hairpin-NAT fix ───────────
 # If NZBGET_URL resolves to this host's own IP, override DNS inside
@@ -38,6 +41,18 @@ if [ -n "$NZBGET_URL" ]; then
   fi
 fi
 
+# ── Language library mounts ───────────────────────────────
+LIBRARY_MOUNTS=""
+[ -n "$SEARCH_MALAYALAM" ] && [ -d "$SEARCH_MALAYALAM" ] && \
+  LIBRARY_MOUNTS="$LIBRARY_MOUNTS -v ${SEARCH_MALAYALAM}:/libraries/malayalam:Z" && \
+  echo "Mounting Malayalam library: $SEARCH_MALAYALAM"
+[ -n "$SEARCH_HINDI" ] && [ -d "$SEARCH_HINDI" ] && \
+  LIBRARY_MOUNTS="$LIBRARY_MOUNTS -v ${SEARCH_HINDI}:/libraries/hindi:Z" && \
+  echo "Mounting Hindi library: $SEARCH_HINDI"
+[ -n "$SEARCH_TAMIL" ] && [ -d "$SEARCH_TAMIL" ] && \
+  LIBRARY_MOUNTS="$LIBRARY_MOUNTS -v ${SEARCH_TAMIL}:/libraries/tamil:Z" && \
+  echo "Mounting Tamil library: $SEARCH_TAMIL"
+
 # ── Build image ───────────────────────────────────────────
 echo "Building ${IMAGE_NAME}..."
 podman build -t "$IMAGE_NAME" -f Containerfile .
@@ -51,8 +66,8 @@ podman images --format "{{.ID}} {{.Repository}}:{{.Tag}}" \
   | awk '{print $1}' \
   | xargs -r podman rmi -f 2>/dev/null || true
 
-# ── Create log directory ──────────────────────────────────
-mkdir -p ./logs
+# ── Create local directories ─────────────────────────────
+mkdir -p ./logs ./data
 
 # ── Stop & remove existing moviedarr container only ──────
 if podman container exists "$CONTAINER_NAME"; then
@@ -69,7 +84,9 @@ podman run -d \
   --env-file "$ENV_FILE" \
   -p "${PORT}:5000" \
   -v "$(pwd)/logs:/app/logs:Z" \
+  -v "$(pwd)/data:/app/data:Z" \
   -v "${STORAGE_PATH}:/media:Z" \
+  $LIBRARY_MOUNTS \
   $EXTRA_HOSTS \
   "$IMAGE_NAME"
 
