@@ -11,7 +11,7 @@ COPY app.py scheduler.py ./
 COPY templates/ templates/
 COPY static/ static/
 
-RUN mkdir -p logs data /libraries/malayalam /libraries/hindi /libraries/tamil
+RUN mkdir -p logs data /libraries/malayalam /libraries/hindi /libraries/tamil /libraries/english
 
 EXPOSE 5000
 

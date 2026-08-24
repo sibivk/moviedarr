@@ -33,6 +33,7 @@ LIBRARY_PATHS = {
     'malayalam': Path('/libraries/malayalam'),
     'hindi':     Path('/libraries/hindi'),
     'tamil':     Path('/libraries/tamil'),
+    'english':   Path('/libraries/english'),
 }
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ PLEX_SECTIONS = {
     'malayalam': os.getenv('PLEX_SECTION_MALAYALAM', ''),
     'hindi':     os.getenv('PLEX_SECTION_HINDI', ''),
     'tamil':     os.getenv('PLEX_SECTION_TAMIL', ''),
+    'english':   os.getenv('PLEX_SECTION_ENGLISH', ''),
 }
 
 _db_lock = Lock()

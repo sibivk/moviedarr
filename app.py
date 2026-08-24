@@ -133,7 +133,7 @@ def search_nzb():
         return jsonify({"error": f"Search failed: {str(e)}"}), 500
 
 
-VALID_LANGUAGES = {"malayalam", "hindi", "tamil"}
+VALID_LANGUAGES = {"malayalam", "hindi", "tamil", "english"}
 
 @app.route("/api/queue", methods=["POST"])
 def queue_nzb():

@@ -201,6 +201,13 @@ header {
   box-shadow: 0 0 14px rgba(248,113,113,0.18);
 }
 
+.lang-pill.en input:checked + span {
+  border-color: #60a5fa;
+  background: rgba(96,165,250,0.12);
+  color: #60a5fa;
+  box-shadow: 0 0 14px rgba(96,165,250,0.18);
+}
+
 /* ─── Status bar ─── */
 #status {
   min-height: 24px;
@@ -805,8 +812,12 @@ footer {
         <input type="radio" name="lang" value="tamil">
         <span>🌺 Tamil</span>
       </label>
+      <label class="lang-pill en">
+        <input type="radio" name="lang" value="english">
+        <span>🌐 English</span>
+      </label>
       <div id="langWarning" class="lang-warning">
-        ⚠ You must select Malayalam, Hindi or Tamil before queuing.
+        ⚠ You must select a library (Malayalam, Hindi, Tamil or English) before queuing.
       </div>
     </div>
   </div>
@@ -1106,7 +1117,7 @@ async function queueItem(urlEnc, titleEnc, btn) {
     if (data.status === 'success') {
       btn.textContent = '✓ Queued';
       btn.classList.add('queued');
-      const langLabel = { malayalam: '🌿 Malayalam', hindi: '🏵 Hindi', tamil: '🌺 Tamil' }[language] || language;
+      const langLabel = { malayalam: '🌿 Malayalam', hindi: '🏵 Hindi', tamil: '🌺 Tamil', english: '🌐 English' }[language] || language;
       toast(`Queued → ${langLabel} library: ${data.name || 'Download added'}`, 'success');
     } else {
       throw new Error(data.error || 'Unknown error');
