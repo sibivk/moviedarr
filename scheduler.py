@@ -85,6 +85,33 @@ def _fuzzy_match(title: str, candidate: str) -> bool:
     return norm_title in norm_cand or norm_cand in norm_title
 
 
+# Strips year + all quality/codec tokens from an NZB title to extract the bare movie name
+_QUALITY_STRIP_RE = re.compile(
+    r'(?i)[.\s_-](?:(?:19|20)\d{2}|s\d{2}e\d{2}|\d{3,4}[pi]|uhd|4k|'
+    r'web[-.]?dl|blu[-.]?ray|bdrip|hdtv|dvdrip|x\d{3}|h\.?\d{3}|hevc|avc|'
+    r'dts|ac3|ddp?\d*|flac|aac|atmos|remux|proper|repack).*'
+)
+
+
+def _nzb_title_matches(query: str, nzb_name: str) -> bool:
+    """
+    Verify an NZB result title actually corresponds to the queried movie.
+    Strips quality tokens, then requires the bare name and query to be
+    equal or have ≥60% length overlap — prevents 'lurk' matching 'Lurking
+    in the Shadows' or other unrelated results that share a substring.
+    """
+    bare = _QUALITY_STRIP_RE.sub('', nzb_name)
+    bare = re.sub(r'[.\-_]', ' ', bare).strip()
+    nq = _norm(query)
+    nb = _norm(bare)
+    if not nq or not nb:
+        return False
+    if nq == nb:
+        return True
+    shorter, longer = (nq, nb) if len(nq) <= len(nb) else (nb, nq)
+    return shorter in longer and len(shorter) / len(longer) >= 0.6
+
+
 def _plex_scan(language: str):
     """Trigger a Plex library scan for the given language section."""
     if not PLEX_URL or not PLEX_TOKEN:
@@ -141,7 +168,23 @@ def _save_db(db: dict):
 def _is_tracked(title: str, year) -> bool:
     with _db_lock:
         db = _load_db()
-        return _db_key(title, year) in db.get('downloads', {})
+        entry = db.get('downloads', {}).get(_db_key(title, year))
+        if not entry:
+            return False
+        if entry.get('status') == 'moved':
+            return True
+        # Queued >7 days ago means the download likely failed/was wrong — allow retry
+        if entry.get('status') == 'queued':
+            queued_at = entry.get('queued_at', '')
+            if queued_at:
+                try:
+                    age = datetime.utcnow() - datetime.fromisoformat(queued_at)
+                    if age.days > 7:
+                        logger.info('Stale queued entry (>7d), will retry: %s', title)
+                        return False
+                except Exception:
+                    pass
+        return True
 
 
 def _record_queued(title: str, year, language: str, nzb_title: str, nzbget_id: int):
@@ -267,8 +310,8 @@ def scrape_ott_movies() -> list:
 
 def search_1080p(title: str) -> list:
     """
-    Search nzbs.in for 1080p releases of a title.
-    Returns results filtered to 1GB–10GB, sorted smallest-first.
+    Search nzbs.in for 1080p releases of a title (falls back to 2160p/4K if none found).
+    Results are title-verified, filtered to 1GB–10GB, sorted smallest-first.
     """
     if not NZBS_API_KEY:
         logger.warning('NZBS_API_KEY not set — skipping search')
@@ -283,16 +326,24 @@ def search_1080p(title: str) -> list:
         logger.error('nzbs.in search error for "%s": %s', title, e)
         return []
 
-    results = []
+    results_1080 = []
+    results_4k   = []
+
     for item in root.findall('.//item'):
         nzb_title = item.findtext('title') or ''
-        link = item.findtext('link') or ''
+        link      = item.findtext('link') or ''
 
-        # Must be 1080p
-        if '1080p' not in nzb_title and '1080i' not in nzb_title:
+        is_1080 = '1080p' in nzb_title or '1080i' in nzb_title
+        is_4k   = '2160p' in nzb_title or '4K' in nzb_title or 'UHD' in nzb_title
+        if not is_1080 and not is_4k:
             continue
 
-        # Parse size
+        # Verify the NZB title actually corresponds to the searched movie
+        if not _nzb_title_matches(title, nzb_title):
+            logger.debug('Title mismatch — skipping: query=%r nzb=%r', title, nzb_title)
+            continue
+
+        # Parse size from newznab:attr, fall back to enclosure
         size = 0
         for attr in item.findall(f'{NEWZNAB_NS}attr'):
             if attr.attrib.get('name') == 'size':
@@ -308,9 +359,14 @@ def search_1080p(title: str) -> list:
         if size < MIN_SIZE_BYTES or size > MAX_SIZE_BYTES:
             continue
 
-        results.append({'title': nzb_title, 'url': link, 'size_bytes': size})
+        entry = {'title': nzb_title, 'url': link, 'size_bytes': size}
+        if is_1080:
+            results_1080.append(entry)
+        else:
+            results_4k.append(entry)
 
-    # Smallest first — closest to 1GB without going under
+    # Prefer 1080p; fall back to 4K/2160p if nothing found
+    results = results_1080 or results_4k
     results.sort(key=lambda x: x['size_bytes'])
     return results
 
@@ -382,7 +438,8 @@ def auto_download_job():
 
         nzbget_id = queue_to_nzbget(nzb_url, clean_name)
         if nzbget_id:
-            logger.info('✓ Queued "%s" [%s] %.2fGB → NZBGet #%d', title, lang, size_gb, nzbget_id)
+            res = '4K' if ('2160p' in nzb_title or '4K' in nzb_title or 'UHD' in nzb_title) else '1080p'
+            logger.info('✓ Queued "%s" [%s/%s] %.2fGB → NZBGet #%d', title, lang, res, size_gb, nzbget_id)
             _record_queued(title, use_year, lang, nzb_title, nzbget_id)
             queued += 1
         else:
