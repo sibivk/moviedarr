@@ -514,6 +514,12 @@ def process_completed_files():
         # Extract title + year from filename
         raw_name = src.stem if src.is_file() else src.name
         movie_title, movie_year = _extract_name_year(raw_name)
+        # Strip embedded language tags like "(Tamil)", "(Hindi)" that NZBGet sometimes
+        # appends to filenames — they corrupt the DB key and break the lookup
+        movie_title = re.sub(
+            r'\s*\((?:malayalam|hindi|tamil|english|telugu|kannada)\)\s*',
+            '', movie_title, flags=re.IGNORECASE
+        ).strip()
         key = _db_key(movie_title, movie_year)
 
         # Look up language in tracking DB
@@ -522,10 +528,12 @@ def process_completed_files():
         entry = db.get('downloads', {}).get(key)
 
         if not entry:
-            # Fuzzy fallback: find by title without year
+            # Fuzzy fallback: match against stored title values (handles year mismatches
+            # and cases where the extracted title differs slightly from the queued title)
             norm = _norm(movie_title)
             entry = next(
-                (v for k, v in db.get('downloads', {}).items() if k.startswith(norm)),
+                (v for v in db.get('downloads', {}).values()
+                 if norm in _norm(v.get('title', '')) or _norm(v.get('title', '')) in norm),
                 None
             )
 
